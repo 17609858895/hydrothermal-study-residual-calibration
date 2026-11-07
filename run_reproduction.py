@@ -12,18 +12,23 @@ import sys
 ROOT = Path(__file__).resolve().parent
 SCRIPTS = ROOT / "scripts"
 TARGETS = "Y_oil,Y_char,Y_aq,Y_gas,ER_oil,HHV_oil"
+# GPBoost boosting iterations per response, selected by 14b_gpboost_tune_rounds.py (study-grouped CV on the
+# first outer training set, early stopping, cap 3,000). Biocrude keeps the default 1,500 (selected 1,438).
+GPB_TUNED_ROUNDS = {"Y_char": 3000, "Y_aq": 566, "Y_gas": 849, "ER_oil": 3000, "HHV_oil": 381}
 
 
-def run(script: str, *args: str, base: str = "lightgbm", dry_run: bool = False) -> None:
+def run(script: str, *args: str, base: str = "lightgbm", dry_run: bool = False,
+        rounds: int = 1500, tag: str = "") -> None:
     command = [sys.executable, str(SCRIPTS / script), *args]
-    print("Running:", " ".join(["python", f"scripts/{script}", *args]), flush=True)
+    extra = f" [GPB_ROUNDS={rounds} GPB_TAG={tag}]" if tag else ""
+    print("Running:", " ".join(["python", f"scripts/{script}", *args]) + extra, flush=True)
     if dry_run:
         return
     env = os.environ.copy()
-    env.update(PYTHONUTF8="1", SRGP_BASE=base, GPB_ROUNDS="1500", GPB_DRAWS="20")
+    env.update(PYTHONUTF8="1", SRGP_BASE=base, GPB_ROUNDS=str(rounds), GPB_TAG=tag, GPB_DRAWS="20")
     logs = ROOT / "results" / "execution_logs"
     logs.mkdir(parents=True, exist_ok=True)
-    suffix = "_" + base + ("_" + args[0].replace(",", "_") if args else "")
+    suffix = "_" + base + ("_" + args[0].replace(",", "_") if args else "") + tag
     with (logs / f"{Path(script).stem}{suffix}.log").open("w", encoding="utf-8") as log:
         subprocess.run(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
 
@@ -71,8 +76,19 @@ def main() -> None:
     for script in ["10_lab_effect_explain.py", "11_active_anchor.py", "13_mo_srgp.py",
                    "14_gpboost_baseline.py", "15_closure_null.py"]:
         run(script, dry_run=args.dry_run)
+    # Response-specific GPBoost iterations (Table S5, Fig. 3a,b); biocrude reuses the 1,500-iteration run above.
+    run("14_gpboost_baseline.py", "Y_char", rounds=GPB_TUNED_ROUNDS["Y_char"], tag="_tuned", dry_run=args.dry_run)
     if full or args.secondary:
         run("09_srgp.py", "Y_aq,Y_gas,ER_oil,HHV_oil", dry_run=args.dry_run)
+        for target in ["Y_aq", "Y_gas", "ER_oil", "HHV_oil"]:
+            run("14_gpboost_baseline.py", target, rounds=GPB_TUNED_ROUNDS[target], tag="_tuned", dry_run=args.dry_run)
+    run("18_gpboost_gap_vs_transfer.py", "tuned", dry_run=args.dry_run)
+    if full:
+        # Iteration selection itself, and the uniform 1,500-iteration sensitivity for the additional responses.
+        run("14b_gpboost_tune_rounds.py", TARGETS, dry_run=args.dry_run)
+        for target in ["Y_aq", "Y_gas", "ER_oil", "HHV_oil"]:   # one process per response, as reported
+            run("14_gpboost_baseline.py", target, dry_run=args.dry_run)
+        run("18_gpboost_gap_vs_transfer.py", "fixed", dry_run=args.dry_run)
     if full or args.catboost:
         run("09_srgp.py", TARGETS, base="catboost", dry_run=args.dry_run)
     if full:

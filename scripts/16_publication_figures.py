@@ -264,7 +264,7 @@ def p1b(ax):
     ax.legend(loc='upper center',bbox_to_anchor=(.5,1.12),ncol=2)
 
 
-gpbench=pd.read_csv(RES/'14_gpboost_summary_Y_oil_Y_char.csv')
+gpbench=pd.read_csv(RES/'14_gpboost_summary_six_targets.csv')  # response-specific GPBoost iterations (14b, 18)
 
 def matched_curve(ax,t):
     methods=[('offset',C_BLUE,'o','--','Constant offset'),
