@@ -15,8 +15,9 @@ Variants
                 SR-GP correction on top of jointly de-confounded trees.
 Compared on the SAME anchor draws with: pooled LightGBM (k=0), constant offset, SR-GP (09_srgp.py).
 R2 as in 09: 1 - SSE/SST on query runs, SST about the outer-training mean.
-Boosting: learning_rate 0.1, 1500 rounds (selected by study-grouped inner CV on fold 0; early stopping
-reached the cap for both targets). GPBoost does not allow bagging.
+Boosting: learning_rate 0.1, 1500 rounds by default (selected for Y_oil/Y_char by study-grouped inner CV on fold 0;
+early stopping reached the cap). Target-specific rounds from 14b_gpboost_tune_rounds.py via GPB_ROUNDS, with
+GPB_TAG=_tuned as output suffix. GPBoost does not allow bagging.
 """
 import sys, importlib.util, warnings, time, os
 from pathlib import Path
@@ -35,6 +36,7 @@ NDRAW = int(os.environ.get("GPB_DRAWS", 20))
 GPB = dict(learning_rate=0.1, num_leaves=31, min_data_in_leaf=10, feature_fraction=0.8,
            lambda_l2=1.0, verbose=-1, num_threads=8, seed=SEED)
 NROUND = int(os.environ.get("GPB_ROUNDS", 1500))
+TAG = os.environ.get("GPB_TAG", "")   # output suffix, e.g. "_tuned" for target-specific rounds (14b)
 VARS = ["GPB-RE", "GPB-RE+GP"]
 
 
@@ -120,8 +122,8 @@ def run(tgt):
                                      "n": len(qi), "sst": float(np.sum((y[qi] - y[tr].mean()) ** 2)),
                                      "rmse_study": float(np.sqrt(np.mean(e ** 2)))})
         print(f"{tgt} fold {fo} {time.time()-t0:.0f}s cov GPB-RE={np.round(CP['GPB-RE'],1)} GPB-RE+GP={np.round(CP['GPB-RE+GP'],2)}", flush=True)
-    R = pd.DataFrame(rows); R.to_csv(RES / f"14_gpboost_raw_{tgt}.csv", index=False)
-    pd.DataFrame(covp).to_csv(RES / f"14_gpboost_covpars_{tgt}.csv", index=False)
+    R = pd.DataFrame(rows); R.to_csv(RES / f"14_gpboost_raw_{tgt}{TAG}.csv", index=False)
+    pd.DataFrame(covp).to_csv(RES / f"14_gpboost_covpars_{tgt}{TAG}.csv", index=False)
     Sm = R.groupby(["k", "model"]).apply(lambda z: pd.Series({
         "R2": 1 - z.sse.sum() / z.sst.sum(), "RMSE": np.sqrt(z.sse.sum() / z.n.sum()),
         "RMSE_study_median": z.rmse_study.median()})).reset_index()
@@ -130,11 +132,11 @@ def run(tgt):
     for b in ["offset", "GPB-RE", "GPB-RE+GP", "SR-GP@GPB"]:
         w = P.groupby("k").apply(lambda z: float(np.mean(z["SR-GP"] < z[b])))
         Sm.loc[Sm.model == b, "frac_episodes_SRGP_better"] = Sm.loc[Sm.model == b, "k"].map(w).values
-    Sm["target"] = tgt
+    Sm["target"] = tgt; Sm["n_rounds"] = NROUND
     print(Sm.to_string(), flush=True)
     return Sm
 
 
 if __name__ == "__main__":
     tg = sys.argv[1].split(",") if len(sys.argv) > 1 else ["Y_oil", "Y_char"]
-    pd.concat([run(t) for t in tg]).to_csv(RES / f"14_gpboost_summary_{'_'.join(tg)}.csv", index=False)
+    pd.concat([run(t) for t in tg]).to_csv(RES / f"14_gpboost_summary_{'_'.join(tg)}{TAG}.csv", index=False)

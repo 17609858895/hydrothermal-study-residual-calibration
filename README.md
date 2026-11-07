@@ -65,6 +65,15 @@ python scripts/14_gpboost_baseline.py
 python scripts/15_closure_null.py
 ```
 
+GPBoost iterations are response specific (see below). The char comparison reported with biocrude uses 3,000 iterations; with PowerShell:
+
+```powershell
+$env:GPB_ROUNDS='3000'; $env:GPB_TAG='_tuned'
+python scripts/14_gpboost_baseline.py Y_char
+Remove-Item Env:GPB_ROUNDS, Env:GPB_TAG
+python scripts/18_gpboost_gap_vs_transfer.py tuned
+```
+
 The controlled summary alias copies `09_srgp_summary_Y_oil_Y_char.csv` to the equivalent `09_srgp_summary_oil_char.csv` name expected by the figure entry point and verifies identical content.
 
 The optional LightGBM secondary-response command is:
@@ -72,6 +81,8 @@ The optional LightGBM secondary-response command is:
 ```bash
 python scripts/09_srgp.py Y_aq,Y_gas,ER_oil,HHV_oil
 ```
+
+The matching GPBoost comparisons run one response per process with `GPB_TAG=_tuned` and `GPB_ROUNDS` set to 566 (`Y_aq`), 849 (`Y_gas`), 3000 (`ER_oil`) or 381 (`HHV_oil`), followed by `python scripts/18_gpboost_gap_vs_transfer.py tuned`. The workflow runs these with `--secondary` or `--profile full`.
 
 To reproduce the CatBoost sensitivity across all six responses, set `SRGP_BASE=catboost` for that command only. For example, in PowerShell:
 
@@ -91,6 +102,7 @@ The workflow's `--catboost` option supplies that environment value to its child 
 - **Intervals:** calibration pools dependent query/episode scores. Results are empirical held-out coverage and width, without an exact group-level finite-sample coverage claim.
 - **Process contrasts:** fixed-effect double machine learning estimates within-study adjusted associations. A causal interpretation additionally requires exposure overlap and control of remaining within-study confounding. Heterogeneity displays are exploratory.
 - **Yield bases and source processing:** reported yield-basis categories and archive-supplied calculated/imputed descriptors are retained. Prediction errors are in reported yield percentage points; the calculated energy ratio is a physical recovery measure only when component denominators are compatible.
+- **Mixed-effect boosting comparison:** GPBoost iterations were selected for each response by `14b_gpboost_tune_rounds.py`: GPBoost cross-validation of the random-intercept model over the study-grouped inner folds of the first outer training set, early stopping after 50 iterations and a 3,000-iteration cap. Selected values were 1,438 (biocrude; the recorded 1,500-iteration run is retained), 2,994 (char), 566 (aqueous), 849 (gas), 2,998 (energy ratio) and 381 (heating value); values at the cap use 3,000. With a uniform 1,500 iterations the heating-value study variance collapses to nearly zero; `--profile full` also reruns that sensitivity and writes `18_gpboost_gap_by_target_fixed.csv`. `18_gpboost_gap_vs_transfer.py tuned` combines the response-specific runs into `14_gpboost_summary_six_targets.csv` (used by Fig. 3a,b) and reports study-bootstrap intervals (2,000 resamples) for Q-squared differences. Correlations across the six responses are descriptive.
 - **Anchor design:** all methods select different record indices without replacement, including when descriptors are duplicated. Variance-based and maximum-minimum-distance designs use at most 60 sampled candidates in large studies, while random anchors are sampled from the complete eligible study. The remaining recorded runs are queries.
 
 In the active-design summary, `win_rate_vs_random` is the fraction of studies where IVR has lower mean query RMSE than random selection. That same IVR comparison is repeated across the strategy rows for a given target and anchor budget; it is not a separate win rate for each displayed strategy. In residual-correction summaries, `RMSE_study_median` is the median of study-by-anchor-draw RMSE values, whereas the active-design summary first averages random draws within a study.
