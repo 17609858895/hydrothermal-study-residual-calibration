@@ -1,7 +1,7 @@
 """Prepare an analysis table from RADAR V1.0.0 master_dataset.csv.
 
-Read-only on the source; writes 10_ML分析/data/analysis_table.parquet (+csv)
-and a data-audit json. All feature engineering here is row-wise (no
+Read-only on the source; writes data/analysis_table.csv
+and results/data_audit.json. All feature engineering here is row-wise (no
 cross-row statistics), so it cannot leak across CV folds.
 """
 from __future__ import annotations

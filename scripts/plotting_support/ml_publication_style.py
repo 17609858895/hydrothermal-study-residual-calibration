@@ -124,7 +124,7 @@ def export_subfigures(fig: plt.Figure, folder: str | Path, stem: str,
         png = subdir / f"{stem}_{suffix}.png"
         pdf = subdir / f"{stem}_{suffix}.pdf"
         fig.savefig(png, dpi=dpi, bbox_inches=bbox, facecolor="white")
-        fig.savefig(pdf, bbox_inches=bbox, facecolor="white")
+        fig.savefig(pdf, bbox_inches=bbox, facecolor="white", metadata={"Author":"CHONG LIU", "Creator":"CHONG LIU"})
         exported.append((suffix, png.name, pdf.name))
     readme = subdir / "README.md"
     lines = ["# Subfigures", "", "Extracted from the final combined figure export.", ""]
@@ -140,7 +140,7 @@ def save_figure_with_subfigures(fig: plt.Figure, folder: str | Path, stem: str,
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     fig.savefig(folder / f"{stem}.png", dpi=dpi, bbox_inches="tight", facecolor="white")
-    fig.savefig(folder / f"{stem}.pdf", bbox_inches="tight", facecolor="white")
+    fig.savefig(folder / f"{stem}.pdf", bbox_inches="tight", facecolor="white", metadata={"Author":"CHONG LIU", "Creator":"CHONG LIU"})
     if export_panels:
         export_subfigures(fig, folder, stem, dpi=dpi)
     if close:

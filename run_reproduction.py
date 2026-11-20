@@ -92,7 +92,11 @@ def main() -> None:
     if full or args.catboost:
         run("09_srgp.py", TARGETS, base="catboost", dry_run=args.dry_run)
     if full:
+        run("19_figure_support.py", dry_run=args.dry_run)
+        run("20_panel_support.py", dry_run=args.dry_run)
+        run("21_supplementary_summaries.py", dry_run=args.dry_run)
         run("16_publication_figures.py", dry_run=args.dry_run)
+        run("17_graphical_abstract.py", dry_run=args.dry_run)
     print("Commands listed." if args.dry_run else "Requested analysis stages completed.")
 
 

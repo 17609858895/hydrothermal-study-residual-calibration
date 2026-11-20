@@ -17,18 +17,19 @@ from audit_palette_usage import validate_series_colors
 
 ROOT=Path(__file__).resolve().parents[1]
 FIG=ROOT/'figures'
-QA=ROOT/'results'/'figure_checks'
+QA=ROOT/'results'/'figure_qa'
 QA.mkdir(parents=True,exist_ok=True)
 configure_publication_style()
 plt.rcParams.update({'font.weight':'normal','axes.labelweight':'normal',
     'axes.labelsize':13,'xtick.labelsize':11,'ytick.labelsize':11,
     'legend.fontsize':10,'axes.linewidth':1.15,'xtick.major.width':1.1,
     'ytick.major.width':1.1,'xtick.major.size':5,'ytick.major.size':5})
-_p=get_palette('nature_new')
+PALETTE_NAME='au_nimno_soft_8'
+_p=get_palette(PALETTE_NAME)
 # Preserve colour meanings across every exported panel.
-PAL=[_p[1],_p[0],_p[2],_p[3],_p[4],_p[5],_p[6],_p[7]]
+PAL=[_p[0],_p[1],_p[2],_p[7],_p[3],_p[5],_p[6],_p[4]]
 INK='#282828'
-ROLE=validate_series_colors('nature_new',{'random':PAL[1],'group':PAL[0],
+ROLE=validate_series_colors(PALETTE_NAME,{'random':PAL[1],'group':PAL[0],
     'P':PAL[3],'RE':PAL[2],'SC':PAL[1],'SC+RE':PAL[0],
     'naive':PAL[5],'FE':PAL[0],'OLS':PAL[2]})
 EDGE={}
@@ -43,7 +44,19 @@ def style_axis(ax,xlabel=None,ylabel=None,tick_size=12,label_size=14):
     for s in ('left','bottom'): ax.spines[s].set_linewidth(1.15)
 
 def normal_text(fig):
-    for item in fig.findobj(Text): item.set_fontweight('normal')
+    """Keep text at regular weight, including ticks from the shared style."""
+    for item in fig.findobj(Text):
+        item.set_fontweight('normal')
+
+
+def audit_text_weights(fig):
+    """Check active text after the renderer has populated the tick labels."""
+    fig.canvas.draw()
+    active = [item for item in fig.findobj(Text) if item.get_visible() and item.get_text()]
+    weighted = [item.get_text() for item in active if item.get_fontweight() != 'normal']
+    if weighted:
+        raise ValueError(f'Non-regular figure text: {weighted}')
+    return len(active)
 
 def align_outer_boundaries(fig, axes, grid):
     """Measure and recalibrate each panel's full text/legend footprint this run."""
@@ -75,9 +88,9 @@ def align_outer_boundaries(fig, axes, grid):
 def audit_colors(fig):
     """Inspect actual data artists plus legend proxies, excluding structural ink."""
     from matplotlib.lines import Line2D
-    from matplotlib.collections import PathCollection
-    from matplotlib.patches import Rectangle
-    allowed={x.lower() for x in get_palette('nature_new')}
+    from matplotlib.collections import LineCollection, PathCollection, PolyCollection
+    from matplotlib.patches import Patch
+    allowed={x.lower() for x in get_palette(PALETTE_NAME)}
     checks=[];bad=[]
     def check(c,kind):
         try:
@@ -93,11 +106,13 @@ def audit_colors(fig):
         if isinstance(obj,Line2D):
             if obj.get_linestyle() not in (None,'None','none','',' '):check(obj.get_color(),'line')
             if obj.get_marker() not in ('','None',None):check(obj.get_markerfacecolor(),'marker')
-        elif isinstance(obj,PathCollection):
-            for c in list(obj.get_facecolors())+list(obj.get_edgecolors()):check(c,'scatter')
-        elif isinstance(obj,Rectangle):check(obj.get_facecolor(),'bar')
+        elif isinstance(obj,(PathCollection,PolyCollection,LineCollection)):
+            for c in list(obj.get_facecolors())+list(obj.get_edgecolors()):check(c,type(obj).__name__)
+        elif isinstance(obj,Patch):
+            check(obj.get_facecolor(),'patch fill')
+            check(obj.get_edgecolor(),'patch edge')
     if bad:raise ValueError(f'Out-of-palette artist colours: {set(bad)}')
-    return {'palette':'nature_new','passed':True,'artists':checks,'continuous_scale':'blue-white-rose interpolation for numerical correlations'}
+    return {'palette':PALETTE_NAME,'passed':True,'artists':checks,'continuous_scale':'blue-white-rose interpolation for numerical correlations'}
 
 def save_combined_and_standalone(stem,panels,grid,figsize,single_size=(5.8,4.8),gridspec_kw=None):
     folder=FIG/stem;sub=folder/'subfigures';sub.mkdir(parents=True,exist_ok=True)
